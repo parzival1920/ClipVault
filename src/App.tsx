@@ -1,22 +1,27 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Upload, 
   Search, 
-  Filter, 
   Trash2, 
   Eye, 
   FileText, 
-  Image as ImageIcon, 
   File as FileIcon,
   X,
   Loader2,
-  Plus
+  Plus,
+  Filter,
+  LogOut,
+  User
 } from 'lucide-react';
 import { Clip, fetchClips, saveClip, deleteClip } from './services/clipService';
 import { analyzeImage, analyzeText } from './services/aiService';
+import { supabase, isSupabaseConfigured } from './lib/supabase';
+import Auth from './components/Auth';
+import { Session } from '@supabase/supabase-js';
+import { AlertCircle } from 'lucide-react';
 
 export default function App() {
+  const [session, setSession] = useState<Session | null>(null);
   const [clips, setClips] = useState<Clip[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -27,8 +32,29 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    loadClips();
-  }, [searchQuery, typeFilter]);
+    if (!isSupabaseConfigured) {
+      setLoading(false);
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (session) {
+      loadClips();
+    }
+  }, [session, searchQuery, typeFilter]);
 
   const loadClips = async () => {
     try {
@@ -42,6 +68,8 @@ export default function App() {
   };
 
   const handleFile = async (file: File) => {
+    if (!session?.user) return;
+    
     if (file.size > 10 * 1024 * 1024) {
       alert("File too large. Max 10MB.");
       return;
@@ -79,13 +107,14 @@ export default function App() {
         ai_summary: aiAnalysis.summary,
         ai_tags: aiAnalysis.tags,
         ai_category: aiAnalysis.category,
-        extracted_text: extractedText
+        extracted_text: extractedText,
+        user_id: session.user.id
       });
 
       await loadClips();
     } catch (error) {
       console.error("Upload failed:", error);
-      alert("Failed to process file. Please check your API key.");
+      alert("Failed to process file. Please check your API key and Supabase configuration.");
     } finally {
       setUploading(false);
     }
@@ -97,15 +126,41 @@ export default function App() {
     return 'text';
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, storagePath: string) => {
     if (!confirm("Delete this clip?")) return;
     try {
-      await deleteClip(id);
+      await deleteClip(id, storagePath);
       await loadClips();
     } catch (error) {
       console.error("Delete failed:", error);
     }
   };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  if (!isSupabaseConfigured) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-[#050505]">
+        <div className="max-w-md w-full bg-white/[0.02] border border-white/5 p-8 rounded-3xl text-center">
+          <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-6" />
+          <h2 className="text-2xl font-bold mb-4">Configuration Required</h2>
+          <p className="text-[#A0A0A0] mb-8">
+            Please set your Supabase environment variables in the Secrets panel to enable authentication and data storage.
+          </p>
+          <div className="space-y-2 text-left bg-black/40 p-4 rounded-xl font-mono text-xs text-[#4A4A4A]">
+            <p>VITE_SUPABASE_URL</p>
+            <p>VITE_SUPABASE_ANON_KEY</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <Auth />;
+  }
 
   return (
     <div className="min-h-screen bg-[#050505] text-[#FAFAFA] selection:bg-[#2E5CFF]/30">
@@ -131,7 +186,20 @@ export default function App() {
             </motion.p>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-6">
+            <div className="flex flex-col items-end">
+              <div className="flex items-center gap-2 text-[#4A4A4A] mb-1">
+                <User size={12} />
+                <span className="text-[10px] font-mono uppercase tracking-[0.2em]">{session.user.email}</span>
+              </div>
+              <button 
+                onClick={handleLogout}
+                className="flex items-center gap-2 text-xs font-mono text-white/40 hover:text-white transition-colors"
+              >
+                <LogOut size={12} />
+                LOGOUT
+              </button>
+            </div>
             <div className="h-12 w-px bg-white/10 hidden md:block" />
             <div className="flex flex-col items-end">
               <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#4A4A4A]">System Status</span>
@@ -277,7 +345,7 @@ export default function App() {
                         <Eye size={18} />
                       </button>
                       <button 
-                        onClick={() => handleDelete(clip.id)}
+                        onClick={() => handleDelete(clip.id, clip.storage_path)}
                         className="w-10 h-10 rounded-full bg-red-500 text-white flex items-center justify-center hover:scale-110 transition-transform"
                       >
                         <Trash2 size={18} />
