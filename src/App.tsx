@@ -218,16 +218,19 @@ export default function App() {
             />
           </div>
           <div className="flex gap-4">
-            <select 
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="bg-white/[0.03] border border-white/5 rounded-xl px-6 py-4 focus:outline-none focus:border-[#2E5CFF]/50 transition-colors appearance-none cursor-pointer"
-            >
-              <option value="">All Formats</option>
-              <option value="image">Images</option>
-              <option value="pdf">PDFs</option>
-              <option value="text">Text</option>
-            </select>
+            <div className="relative">
+              <select 
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="bg-[#111111] text-[#FAFAFA] border border-white/5 rounded-xl pl-6 pr-12 py-4 focus:outline-none focus:border-[#2E5CFF]/50 transition-colors appearance-none cursor-pointer w-full sm:w-48"
+              >
+                <option value="" className="bg-[#111111]">All Formats</option>
+                <option value="image" className="bg-[#111111]">Images</option>
+                <option value="pdf" className="bg-[#111111]">PDFs</option>
+                <option value="text" className="bg-[#111111]">Text</option>
+              </select>
+              <Filter className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#4A4A4A] pointer-events-none" />
+            </div>
           </div>
         </div>
 
