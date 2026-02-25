@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+const API_KEY = process.env.GEMINI_API_KEY;
+const genAI = API_KEY ? new GoogleGenAI({ apiKey: API_KEY }) : null;
 
 export interface AIAnalysisResult {
   summary: string;
@@ -29,7 +30,10 @@ const responseSchema = {
 };
 
 export const analyzeImage = async (base64Data: string, mimeType: string): Promise<AIAnalysisResult> => {
-  const response = await ai.models.generateContent({
+  if (!genAI) {
+    throw new Error('Gemini API key not configured');
+  }
+  const response = await genAI.models.generateContent({
     model: "gemini-2.5-flash-image",
     contents: {
       parts: [
@@ -54,7 +58,10 @@ export const analyzeImage = async (base64Data: string, mimeType: string): Promis
 };
 
 export const analyzeText = async (text: string): Promise<AIAnalysisResult> => {
-  const response = await ai.models.generateContent({
+  if (!genAI) {
+    throw new Error('Gemini API key not configured');
+  }
+  const response = await genAI.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Analyze this text and provide a summary, tags, and a category in JSON format:\n\n${text.slice(0, 10000)}`,
     config: {
